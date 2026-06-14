@@ -73,63 +73,44 @@ export const deleteUserController = async (req, res) => {
 };
 
 export const loginUserController = async (req, res) => {
-
     try {
+       
+        const userWithoutPassword = await loginUserService(req.body);
 
-        const result = await loginUserService(req.body);
+       
+        const token = jwt.sign(
+            {
+                id: userWithoutPassword.id, 
+                email: userWithoutPassword.email
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "30min"
+            }
+        );
 
-        // User Found
-        if (result.length > 0) {
+        // Success Response
+        return res.status(200).json({
+            success: true,
+            message: "Login Successfully",
+            token: token,
+            user: userWithoutPassword
+        });
 
-            // JWT TOKEN GENERATE
-            const token = jwt.sign(
+    } catch (error) {
+        console.error("Login Controller Error:", error.message);
 
-                {
-
-                    id: result[0].id,
-                    email: result[0].email
-                },
-
-                process.env.JWT_SECRET,
-
-                {
-                    expiresIn: "30min"
-                }
-            );
-            const user = result[0];
-
-            const { password, ...userWithoutPassword } = user;
-
-            res.json({
-
-                success: true,
-
-                message: "Login Successfully",
-
-                token: token,
-
-                user: userWithoutPassword
-
-            });
-
-        } else {
-
-            res.status(401).json({
-
+      
+        if (error.message === "Invalid Email or Password") {
+            return res.status(401).json({
                 success: false,
-
-                message: "Invalid Email or Password"
+                message: error.message
             });
         }
 
-    } catch (error) {
-
-        console.log(error);
-
-        res.status(500).json({
-
+       
+        return res.status(500).json({
             success: false,
-
             message: "Login Error"
         });
     }

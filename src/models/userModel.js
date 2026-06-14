@@ -79,18 +79,14 @@ const deleteUser = async (id) => {
     return result;
 };
 
-const loginUser = async (data) => {
-
-    const { email, password } = data;
+const loginUser = async (email) => {
 
     const [result] = await db.execute(
+        `SELECT * FROM users WHERE email = ?`,
 
-        `SELECT * FROM users 
-         WHERE email=? AND password=?`,
-
-        [email, password]
+        [email]
     );
-    return result;
+    return result[0];
 };
 
 export {

@@ -21,6 +21,7 @@ const getAddress = async (userId) => {
             u.email,
             u.mobile,
             u.pincode,
+            u.created_at,
             u.status AS user_status,
 
             a.id AS address_id,

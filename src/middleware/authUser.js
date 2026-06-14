@@ -13,7 +13,7 @@ const authUser = async (req, res, next) => {
             });
         }
 
-        // "Bearer token" → split
+       
         const token = authHeader.split(" ")[1];
 
         // VERIFY HERE ✔

@@ -8,7 +8,7 @@ import {
 import bcrypt from 'bcryptjs';
 
 export const registerUserService = async (data) => {
-    const { name, mobile, pincode, email, password } = data;
+    const { name, mobile, pincode, email, password,profile_image } = data;
 
     
     const salt = await bcrypt.genSalt(10);
@@ -20,7 +20,8 @@ export const registerUserService = async (data) => {
         mobile,
         pincode,
         email,
-        password: hashedPassword 
+        password: hashedPassword,
+        profile_image
     });
 };
 

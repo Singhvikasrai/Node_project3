@@ -3,10 +3,10 @@ import db from "../config/db.js";
 // REGISTER USER
 const registerUser = async (data) => {
 
-    const { name, password, mobile, pincode, email} = data;
+    const { name, password, mobile, pincode, email, profile_image } = data;
 
-    const [result] = await db.execute(`INSERT INTO users(name, password, mobile, pincode, email)VALUES (?,?,?,?,?)`,
-        [name,password,mobile,pincode,email]);
+    const [result] = await db.execute(`INSERT INTO users(name, password, mobile, pincode, email, profile_image)VALUES (?,?,?,?,?,?,?)`,
+        [name,password,mobile,pincode,email,profile_image]);
 
     return result;
 };
@@ -15,7 +15,7 @@ const registerUser = async (data) => {
 // GET USERS
 const getUsers = async () => {
 
-    const [rows] = await db.execute(`SELECT id, name, mobile, pincode, email, status, created_at, updated_at  FROM users`);
+    const [rows] = await db.execute(`SELECT id,  mobile, pincode, email, status, created_at, updated_at  FROM users`);
 
     return rows;
 };

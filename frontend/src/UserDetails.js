@@ -1,23 +1,45 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+
+const API_BASE_URL = "http://localhost:5000";
 
 function UserDetails() {
-  const { id } = useParams();
+  const { id } = useParams(); 
+  const navigate = useNavigate(); 
+
+  const [userInfo, setUserInfo] = useState({ name: "", email: "", mobile: "", pincode: "", status: "", created_at: "", profile_image: null });
+  const [addresses, setAddresses] = useState([]);
+  const [employments, setEmployments] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  const getImageUrl = (value) => {
+    if (!value) return null;
+    const cleanPath = String(value);
+    return `${API_BASE_URL}/${cleanPath}`;
+  };
+
+  const isPdfFile = (url) => {
+    if (!url) return false;
+    return url.toLowerCase().split(/[?#]/)[0].endsWith('.pdf');
+  };
 
   const statusMap = { 
     1: "Active", 
     0: "Inactive", 
-    9: "Pending" 
+    9: "Pending"
   };
-
-  const [userInfo, setUserInfo] = useState({ name: "", email: "", mobile: "", pincode: "", status: "", created_at: "" });
-  const [addresses, setAddresses] = useState([]);
-  const [employments, setEmployments] = useState([]);
 
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        const res = await fetch(`http://localhost:5000/address/${id}`);
+        setIsLoading(true);
+        const res = await fetch(`${API_BASE_URL}/address/${id}`);
+        
+        if (!res.ok) throw new Error("Failed to fetch user details");
+        
         const result = await res.json();
 
         if (result?.data?.length > 0) {
@@ -30,7 +52,8 @@ function UserDetails() {
             mobile: firstRow?.mobile || "",
             pincode: firstRow?.pincode || "",
             status: firstRow?.user_status ?? "",
-            created_at: firstRow?.created_at || ""
+            created_at: firstRow?.created_at || "",
+            profile_image: firstRow?.profile_image 
           });
 
           const uniqueAddresses = [];
@@ -43,9 +66,10 @@ function UserDetails() {
               uniqueAddresses.push({
                 address: row.address,
                 landmark: row.landmark,
-                pincode: row.pincode || row.Pincode, // Extracted specifically for the address block
+                pincode: row.pincode || row.Pincode,
                 city_name: row.city_name || row.City,
                 address_type: row.address_type,
+                address_image: row.address_image || null,
                 state_name: row.state_name || row.State_Name
               });
             }
@@ -80,7 +104,8 @@ function UserDetails() {
                 salary_id: row.salary_id,
                 salary: row.salary,
                 start_date: row.start_date,
-                end_date: row.end_date
+                end_date: row.end_date,
+                salary_image: row.salary_image || null
               });
             }
           });
@@ -90,13 +115,16 @@ function UserDetails() {
         }
       } catch (err) {
         console.error("Fetch Details Error:", err);
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     if (id) fetchDetails();
   }, [id]);
 
-  // Styling Declarations
+  // CSS Styles
   const containerStyle = { padding: "30px", maxWidth: "800px", margin: "0 auto", backgroundColor: "#f8f9fa", minHeight: "100vh" };
   const cardStyle = { backgroundColor: "white", borderRadius: "12px", marginBottom: "25px", padding: "30px", boxShadow: "0 4px 12px rgba(0,0,0,0.05)", fontFamily: "Arial, sans-serif" };
   const sectionTitleStyle = { fontSize: "18px", fontWeight: "700", color: "#007bff", marginBottom: "20px", paddingBottom: "10px", borderBottom: "2px solid #007bff", textTransform: "uppercase" };
@@ -107,6 +135,12 @@ function UserDetails() {
   const blockStyle = { background: "#fdfdfd", border: "1px solid #e0e0e0", padding: "15px", borderRadius: "8px", marginBottom: "15px" };
   const salaryBlockStyle = { marginTop: "10px", paddingTop: "10px", borderTop: "1px dashed #ddd" };
 
+  const clickableImageStyle = { cursor: "pointer", transition: "transform 0.2s ease" };
+
+  const modalOverlayStyle = { position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 };
+  const modalContentStyle = { position: "relative", width: "80%", height: "85%", borderRadius: "8px", boxShadow: "0 5px 15px rgba(0,0,0,0.3)", display: "flex", justifyContent: "center", alignItems: "center", overflow: "hidden" };
+  const closeButtonStyle = { position: "absolute", top: "10px", right: "10px", background: "white", border: "none", borderRadius: "50%", width: "40px", height: "40px", fontSize: "25px", fontWeight: "bold", cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.2)", zIndex: 1001 };
+
   const DetailField = ({ label, value }) => (
     <div style={detailItemStyle}>
       <span style={labelStyle}>{label}</span>
@@ -114,20 +148,86 @@ function UserDetails() {
     </div>
   );
 
+  if (isLoading) return <div style={{ textAlign: "center", padding: "50px" }}>Loading user details...</div>;
+  if (error) return <div style={{ textAlign: "center", padding: "50px", color: "red" }}>Error: {error}</div>;
+
   return (
     <div style={containerStyle}>
       <h2 style={{ textAlign: "center", color: "#333", marginBottom: "30px" }}>User Profile Details</h2>
+      
+
+      {selectedFile && (
+        <div style={modalOverlayStyle} onClick={() => setSelectedFile(null)}>
+          <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <button style={closeButtonStyle} onClick={() => setSelectedFile(null)}>×</button>
+            
+            {isPdfFile(selectedFile) ? (
+              <iframe 
+                src={selectedFile} 
+                title="PDF Document" 
+                width="100%" 
+                height="100%" 
+                style={{ border: "none" }}
+              />
+            ) : (
+              <img 
+                src={selectedFile} 
+                alt="Large View" 
+                style={{ maxWidth: "100%", maxHeight: "100%"}} 
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={cardStyle}>
         <div style={detailRowStyle}>
-          {/* Handled safe Date Conversion to avoid rendering "Invalid Date" */}
           <DetailField 
             label="Created At" 
             value={userInfo.created_at ? new Date(userInfo.created_at).toLocaleString() : "N/A"} 
+            
           />
+          <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px",
+        }}
+      >
+       
+
+        <button
+          type="button"
+          onClick={() => navigate(`/user/${id}/edit`)}
+          style={{
+            padding: "8px 18px",
+            backgroundColor: "#007bff",
+            color: "#fff",
+            border: "none",
+            borderRadius: "6px",
+            cursor: "pointer",
+            fontWeight: "600",
+            marginLeft: "auto",
+          }}
+        >
+          Edit
+        </button>
+      </div>
         </div>
         <h3 style={sectionTitleStyle}>Personal Information</h3>
         <div style={detailRowStyle}>
+          <DetailField 
+            label="Profile Image" 
+            value={userInfo.profile_image ? (
+              <img 
+                src={getImageUrl(userInfo.profile_image)} 
+                alt="Profile" 
+                style={{ ...clickableImageStyle, width: "100px", height: "100px", borderRadius: "50%" }} 
+                onClick={() => setSelectedFile(getImageUrl(userInfo.profile_image))}
+              />
+            ) : "N/A"} 
+          />
           <DetailField label="Full Name" value={userInfo.name} />
           <DetailField label="Email Address" value={userInfo.email} />
           <DetailField label="Mobile Number" value={userInfo.mobile} />
@@ -146,10 +246,30 @@ function UserDetails() {
               <DetailField label="Address" value={addr.address} />
               <DetailField label="Address Type" value={addr.address_type} />
               <DetailField label="Landmark" value={addr.landmark} />
-              {/* FIXED: Displaying the address-specific pincode instead of userInfo.pincode */}
               <DetailField label="Pincode" value={addr.pincode} />
               <DetailField label="City" value={addr.city_name} />  
               <DetailField label="State Name" value={addr.state_name} />
+              
+              <DetailField 
+                label="Address Image / PDF" 
+                value={addr.address_image ? (
+                  isPdfFile(getImageUrl(addr.address_image)) ? (
+                    <button 
+                      onClick={() => setSelectedFile(getImageUrl(addr.address_image))}
+                      style={{ padding: "8px 12px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}
+                    >
+                      View PDF Document
+                    </button>
+                  ) : (
+                    <img 
+                      src={getImageUrl(addr.address_image)} 
+                      alt="Address" 
+                      style={{ ...clickableImageStyle, width: "150px", height: "80px", borderRadius: "8px" }} 
+                      onClick={() => setSelectedFile(getImageUrl(addr.address_image))}
+                    />
+                  )
+                ) : "N/A"} 
+              />
             </div>
           </div>
         ))}
@@ -176,6 +296,18 @@ function UserDetails() {
                 <DetailField label={`Salary ${salaryIndex + 1}`} value={salaryRow.salary ? `Rs.${salaryRow.salary}` : "N/A"} />
                 <DetailField label="Start Date" value={salaryRow.start_date ? new Date(salaryRow.start_date).toLocaleDateString() : "N/A"} />
                 <DetailField label="End Date" value={salaryRow.end_date ? new Date(salaryRow.end_date).toLocaleDateString() : "N/A"} />
+                
+                <DetailField 
+                  label="Salary PDF" 
+                  value={salaryRow.salary_image ? (
+                    <button 
+                      onClick={() => setSelectedFile(getImageUrl(salaryRow.salary_image))}
+                      style={{ padding: "8px 12px", backgroundColor: "#28a745", color: "white", border: "none", borderRadius: "4px", cursor: "pointer", fontWeight: "bold" }}
+                    >
+                      View Salary PDF
+                    </button>
+                  ) : "N/A"} 
+                />
               </div>
             ))}
           </div>

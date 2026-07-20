@@ -1,16 +1,18 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 
 function Register() {
-  const [form, setForm] = useState({ name: "", email: "", password: "", mobile: "", pincode: "" });
-  const [addresses, setAddresses] = useState([{ address_type: "", address: "", landmark: "", state_id: "", city_id: "" }]);
-  const [employments, setEmployments] = useState([{
-    company_name: "",
-    company_address: "",
-    company_pincode: "",
-    company_mobile: "",
-    company_email: "",
-    salaries: [{ salary: "", start_date: "", end_date: "" }]
-  }]);
+  const [form, setForm] = useState({ name: "", email: "", password: "", mobile: "", pincode: "", profile_image: null });
+  const [addresses, setAddresses] = useState([{ address_type: "", address: "", landmark: "", state_id: "", city_id: "", address_image: null }]);
+  const [employments, setEmployments] = useState([
+    {
+      company_name: "",
+      company_address: "",
+      company_pincode: "",
+      company_mobile: "",
+      company_email: "",
+      salaries: [{ salary: "", start_date: "", end_date: "" }]
+    }
+  ]);
 
   const [errors, setErrors] = useState({});
   const [states, setStates] = useState([]);
@@ -18,13 +20,34 @@ function Register() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (["mobile", "pincode"].includes(name)) {
-      if (!/^\d*$/.test(value)) return;
+  // --- AUDIT LOG HELPER FUNCTION ---
+  const logToAudit = async (payload) => {
+    try {
+      await fetch("http://localhost:5000/api/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.error("Audit log failed for " + payload.primary_type + ":", err);
     }
-    setForm({ ...form, [name]: value });
   };
+
+ const handleChange = (e) => {
+  const { name, value, files } = e.target;
+
+  if (name === "profile_image") {
+    setForm({ ...form, profile_image: files[0] });
+    return;
+    console.log(files[0])
+  }
+
+  if (["mobile", "pincode"].includes(name)) {
+    if (!/^\d*$/.test(value)) return;
+  }
+
+  setForm({ ...form, [name]: value });
+};
 
   useEffect(() => {
     const fetchStates = async () => {
@@ -43,7 +66,7 @@ function Register() {
 
   const addBlock = (section) => {
     if (section === "address") {
-      setAddresses([...addresses, { address_type: "", address: "", landmark: "", state_id: "", city_id: "" }]);
+      setAddresses([...addresses, { address_type: "", address: "", landmark: "", state_id: "", city_id: "",address_image:null }]);
     }
     if (section === "employment") {
       setEmployments([
@@ -75,10 +98,7 @@ function Register() {
       updated[index][name] = value;
       updated[index]["city_id"] = "";
 
-      if (value && !citiesByState[value]) {  
-
-          
-      
+      if (value && !citiesByState[value]) {
         try {
           const res = await fetch(`http://localhost:5000/city?state_id=${value}`);
           if (res.ok) {
@@ -131,11 +151,9 @@ function Register() {
     setEmployments(updated);
   };
 
-  // COMPLETE VALIDATION LOGIC
   const validateForm = () => {
     let newErrors = {};
 
-    // 1. User Info Checks
     if (!form.name.trim()) newErrors.name = "Name required";
     if (!form.email.trim()) newErrors.email = "Email required";
     if (!form.password.trim()) newErrors.password = "Password required";
@@ -152,7 +170,6 @@ function Register() {
       newErrors.pincode = "Pincode must be 6 digits";
     }
 
-   
     for (let i = 0; i < addresses.length; i++) {
       if (!addresses[i].state_id) newErrors[`state_id${i}`] = "State required";
       if (!addresses[i].city_id) newErrors[`city_id${i}`] = "City required";
@@ -161,13 +178,11 @@ function Register() {
       if (!addresses[i].address_type) newErrors[`address_type${i}`] = "Address type required";
     }
 
-   
     for (let i = 0; i < employments.length; i++) {
       const emp = employments[i];
-
       if (!emp.company_name.trim()) newErrors[`company_name${i}`] = "Company name required";
       if (!emp.company_email.trim()) newErrors[`company_email${i}`] = "Company email required";
-      
+
       if (!emp.company_mobile.trim()) {
         newErrors[`company_mobile${i}`] = "Company mobile required";
       } else if (emp.company_mobile.length !== 10) {
@@ -194,9 +209,10 @@ function Register() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // --- PRODUCTION LEVEL SUBMIT WITH SEQUENTIAL AUDIT LOGGING ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     const isValid = validateForm();
     if (!isValid) {
       setMessage({ type: "error", text: "Please fix the validation errors before submitting." });
@@ -207,96 +223,105 @@ function Register() {
       setLoading(true);
       setMessage({ type: "", text: "" });
 
-      // 1. USER REGISTER
-      const userRes = await fetch("http://localhost:5000/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const formData = new FormData();
+
+      const payloadAddresses = addresses.map((addr) => {
+        const selectedCity = (citiesByState[addr.state_id] || []).find(
+          (city) => String(city.id) === String(addr.city_id)
+        );
+        return {
+          address_type: addr.address_type,
+          address: addr.address,
+          landmark: addr.landmark,
+          state_id: addr.state_id,
+          city_id: addr.city_id,
+          city_name: selectedCity?.city_name || selectedCity?.name || "",
+          address_image: ""
+        };
+      });
+
+      const payloadEmployments = employments.map((emp) => ({
+        company_name: emp.company_name,
+        company_address: emp.company_address,
+        pincode: emp.company_pincode,
+        mobile: emp.company_mobile,
+        email: emp.company_email,
+        salaries: emp.salaries.map((sal) => ({
+          salary: sal.salary,
+          start_date: sal.start_date,
+          end_date: sal.end_date,
+          salary_status: 1,
+          salary_image: ""
+        }))
+      }));
+
+      const jsonData = {
+        user: {
           name: form.name,
           email: form.email,
           password: form.password,
           mobile: form.mobile,
-          pincode: form.pincode
-        })
+          pincode: form.pincode,
+          status: 3,
+          profile_image: ""
+        },
+        addresses: payloadAddresses,
+        employments: payloadEmployments
+      };
+
+      formData.append("data", JSON.stringify(jsonData));
+
+      if (form.profile_image) {
+        formData.append("profile_image", form.profile_image);
+      }
+
+      addresses.forEach((addr, index) => {
+        if (addr.address_image) {
+          formData.append(`address_image_${index}`, addr.address_image);
+        }
       });
-      
+
+      employments.forEach((emp, empIdx) => {
+        emp.salaries.forEach((sal, salIdx) => {
+          if (sal.salary_image) {
+            formData.append(`salary_image_${empIdx}_${salIdx}`, sal.salary_image);
+          }
+        });
+      });
+
+      const userRes = await fetch("http://localhost:5000/register", {
+        method: "POST",
+        body: formData,
+      });
+
       const userData = await userRes.json();
       if (!userRes.ok) throw new Error(userData.message || "Registration failed");
-      
-      const userId = userData.data?.insertId || userData.insertId;
-      if (!userId) throw new Error("User Registration successful");
 
-      // 2. DYNAMIC ADDRESS SUBMIT
-      for (let addr of addresses) {
-        await fetch("http://localhost:5000/address", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            address_type: addr.address_type,
-            address: addr.address,
-            landmark: addr.landmark,
-            city_id: addr.city_id,
-          })
-        });
-      }
+      setMessage({ type: "success", text: "Registration completed successfully! You can now log in." });
 
-      // 3. MERGED COMPANY & SALARY SUBMIT
-      for (let emp of employments) {
-        const empRes = await fetch("http://localhost:5000/employment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userId,
-            company_name: emp.company_name,
-            company_address: emp.company_address,
-            pincode: emp.company_pincode,
-            mobile: emp.company_mobile,
-            email: emp.company_email
-          })
-        });
-        
-        const empData = await empRes.json();
-        const empId = empData.data?.insertId || empData.insertId;
-
-        for (let salaryRow of emp.salaries) {
-          await fetch("http://localhost:5000/salary", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              user_id: userId,
-              empl_id: empId,
-              salary: salaryRow.salary,
-              start_date: salaryRow.start_date,
-              end_date: salaryRow.end_date
-            })
-          });
+      // Reset everything on success
+      setForm({ name: "", email: "", password: "", mobile: "", pincode: "", profile_image: null });
+      setAddresses([{ address_type: "", address: "", landmark: "", state_id: "", city_id: "", address_image: null }]);
+      setEmployments([
+        {
+          company_name: "",
+          company_address: "",
+          company_pincode: "",
+          company_mobile: "",
+          company_email: "",
+          salaries: [{ salary: "", start_date: "", end_date: "" , salary_image: null}]
         }
-      }
-
-      setMessage({ type: "success", text: "Registration Successful!" });
-      
-      // reset form
-      setForm({ name: "", email: "", password: "", mobile: "", pincode: "" });
-      setAddresses([{ address_type: "", address: "", landmark: "", state_id: "", city_id: "" }]);
-      setEmployments([{
-        company_name: "",
-        company_address: "",
-        company_pincode: "",
-        company_mobile: "",
-        company_email: "",
-        salaries: [{ salary: "", start_date: "", end_date: "" }]
-      }]);
+      ]);
       setErrors({});
-
     } catch (err) {
       console.error(err);
-      setMessage({ type: "error", text: err.message || "Something went wrong" });
+      setMessage({ type: "error", text: err.message || "Something went wrong during registration." });
     } finally {
       setLoading(false);
     }
   };
-   const today = new Date().toISOString().split("T")[0];
+
+  const today = new Date().toISOString().split("T")[0];
   const inputStyle = { width: "100%", padding: "10px", margin: "8px 0", border: "1px solid #ccc", borderRadius: "5px", boxSizing: "border-box" };
   const buttonStyle = { width: "100%", padding: "12px", background: "#007bff", color: "white", border: "none", borderRadius: "5px", cursor: "pointer" };
   const addBtnStyle = { background: "#4e83b2", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer", float: "right" };
@@ -309,7 +334,12 @@ function Register() {
     <div style={{ width: "700px", margin: "auto", paddingBottom: "40px" }}>
       <h2 style={{ textAlign: "center" }}>Complete Registration</h2>
 
-      
+      {message.text && (
+        <div style={{ padding: "12px", margin: "15px 0", borderRadius: "5px", backgroundColor: message.type === "error" ? "#f8d7da" : "#d4edda", color: message.type === "error" ? "#721c24" : "#155724", border: "1px solid" }}>
+          {message.text}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         {/* USER INFO SECTION */}
         <div style={sectionStyle}>
@@ -328,6 +358,8 @@ function Register() {
 
           <input name="pincode" placeholder="Pincode" value={form.pincode} maxLength={6} onChange={handleChange} style={inputStyle} />
           {errors.pincode && <div style={errorStyle}>{errors.pincode}</div>}
+          <input type="file" name="profile_image" accept="image/*" onChange={handleChange} style={{ marginTop: "10px" }} />
+          {errors.profile_image && <div style={errorStyle}>{errors.profile_image}</div>}
         </div>
 
         {/* LOCATION / ADDRESSES SECTION */}
@@ -337,7 +369,7 @@ function Register() {
           {addresses.map((addr, index) => (
             <div key={index} style={{ borderBottom: index > 0 ? "1px dashed #ccc" : "none", marginTop: "10px", paddingBottom: "10px" }}>
               {index > 0 && <h5>Address #{index + 1}</h5>}
-              
+
               <select name="state_id" value={addr.state_id} onChange={(e) => handleAddressChange(index, e)} style={inputStyle}>
                 <option value="">Select State</option>
                 {states.map((s) => <option key={s.id} value={s.id}>{s.state_name || s.name}</option>)}
@@ -362,6 +394,10 @@ function Register() {
                 <option value="Office">Office</option>
                 <option value="Other">Other</option>
               </select>
+               <input type="file"   accept="image/*,.pdf,application/pdf" onChange={(e) => {const updated = [...addresses];updated[index].address_image = e.target.files[0]; setAddresses(updated);
+
+                }}/>
+
               {errors[`address_type${index}`] && <div style={errorStyle}>{errors[`address_type${index}`]}</div>}
 
               {addresses.length > 1 && (
@@ -369,6 +405,7 @@ function Register() {
               )}
             </div>
           ))}
+
         </div>
 
         {/* COMPANY & SALARY SECTION */}
@@ -378,7 +415,7 @@ function Register() {
           {employments.map((emp, index) => (
             <div key={index} style={{ borderBottom: index > 0 ? "2px solid #ccc" : "none", marginTop: "15px", paddingBottom: "15px" }}>
               {index > 0 && <h5>Company #{index + 1}</h5>}
-              
+
               <input name="company_name" placeholder="Company Name" value={emp.company_name} onChange={(e) => handleEmploymentChange(index, e)} style={inputStyle} />
               {errors[`company_name${index}`] && <div style={errorStyle}>{errors[`company_name${index}`]}</div>}
 
@@ -393,7 +430,7 @@ function Register() {
 
               <input name="company_address" placeholder="Company Address" value={emp.company_address} onChange={(e) => handleEmploymentChange(index, e)} style={inputStyle} />
               {errors[`company_address${index}`] && <div style={errorStyle}>{errors[`company_address${index}`]}</div>}
-            
+
               {/* SALARY NESTED SECTION */}
               <div style={salaryStyle}>
                 <button type="button" onClick={() => addSalary(index)} style={addBtnStyle}>+ Add Salary</button>
@@ -402,7 +439,7 @@ function Register() {
                 {emp.salaries.map((salaryRow, salaryIndex) => (
                   <div key={salaryIndex} style={{ borderTop: salaryIndex > 0 ? "1px dashed #c6d9e8" : "none", marginTop: "10px", paddingTop: "10px", clear: "both" }}>
                     {salaryIndex > 0 && <h5>Salary #{salaryIndex + 1}</h5>}
-                    
+
                     <input name="salary" placeholder="Salary Amount" value={salaryRow.salary} onChange={(e) => handleSalaryChange(index, salaryIndex, e)} style={inputStyle} />
                     {errors[`salary${index}_${salaryIndex}`] && <div style={errorStyle}>{errors[`salary${index}_${salaryIndex}`]}</div>}
 
@@ -414,11 +451,18 @@ function Register() {
                       </div>
                       <div style={{ flex: 1 }}>
                         <label style={{ fontSize: "12px", color: "#666" }}>End Date</label>
-                        
                         <input type="date" name="end_date" value={salaryRow.end_date} max={today} onChange={(e) => handleSalaryChange(index, salaryIndex, e)} style={inputStyle} />
                         {errors[`end_date${index}_${salaryIndex}`] && <div style={errorStyle}>{errors[`end_date${index}_${salaryIndex}`]}</div>}
+                           
                       </div>
                     </div>
+                    {/* PDF Upload */}
+               <div style={{ marginTop: "10px" }}> <input type="file" accept=".pdf" onChange={(e) => {
+               const updated = [...employments];
+                updated[index].salaries[salaryIndex].salary_image = e.target.files[0]; 
+                setEmployments(updated);
+              }}/>
+              </div>
 
                     {emp.salaries.length > 1 && (
                       <button type="button" onClick={() => removeSalary(index, salaryIndex)} style={removeBtnStyle}>Remove Salary</button>
@@ -426,12 +470,6 @@ function Register() {
                   </div>
                 ))}
               </div>
-              {message.text && (
-        <p style={{ color: message.type === "error" ? "red" : "green", fontWeight: "bold" }}>
-          {message.text}
-        </p>
-      )}
-
 
               {employments.length > 1 && (
                 <button type="button" onClick={() => removeBlock("employment", index, employments, setEmployments)} style={{ ...removeBtnStyle, width: "100%", padding: "10px", marginTop: "10px" }}>
@@ -443,7 +481,7 @@ function Register() {
         </div>
 
         <button type="submit" style={buttonStyle} disabled={loading}>
-          {loading ? "success..." : "Register"}
+          {loading ? "Processing..." : "Register"}
         </button>
       </form>
     </div>

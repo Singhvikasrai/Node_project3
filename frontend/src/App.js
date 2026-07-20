@@ -4,66 +4,98 @@ import {
   Route,
   Link,
   Navigate,
-  useNavigate
+  useNavigate,
 } from "react-router-dom";
 
-// Pages
 import Register from "./Register";
 import Login from "./Login";
 import Users from "./Users";
 import UserDetails from "./UserDetails";
 import EditUser from "./EditUser";
+import Audit from "./Audit";
+import PendingApprovals from "./PendingApprovals";
 
 export default function App() {
   const navigate = useNavigate();
 
-  // Token ko state mein rakha taaki login/logout par UI bina refresh badle
   const [token, setToken] = useState(localStorage.getItem("token"));
 
-  // Logout function
+  // Logged in user
+  const user = JSON.parse(localStorage.getItem("user"));
+
   const logoutUser = () => {
     localStorage.removeItem("token");
-    localStorage.removeItem("isLogin"); // optional cleanup
-    setToken(null); // State null hote hi Navbar aur Routes turant badal jayenge
+    localStorage.removeItem("user");
+    localStorage.removeItem("isLogin");
+
+    setToken(null);
+
     navigate("/login");
   };
 
   return (
     <div>
-      {/* NAVBAR */}
+      {/* Navbar */}
+
       <nav
         style={{
           display: "flex",
           gap: "20px",
           padding: "15px",
           background: "#007bff",
-          alignItems: "center"
+          alignItems: "center",
         }}
       >
-        {/* BEFORE LOGIN (Guest Links) */}
         {!token && (
           <>
-            <Link to="/" style={{ color: "white", textDecoration: "none", fontWeight: "600" }}>Register</Link>
-            <Link to="/login" style={{ color: "white", textDecoration: "none", fontWeight: "600" }}>Login</Link>
+            <Link to="/" style={{ color: "white" }}>
+              Register
+            </Link>
+
+            <Link to="/login" style={{ color: "white" }}>
+              Login
+            </Link>
           </>
         )}
 
-        {/* AFTER LOGIN (Authenticated Links) */}
         {token && (
           <>
-            <Link to="/users" style={{ color: "white", textDecoration: "none", fontWeight: "600" }}>Users</Link>
+            {/* Sirf Admin ke liye */}
+            {user?.role === "admin" && (
+              <>
+                <Link to="/users" style={{ color: "white" }}>
+                  Users
+                </Link>
+
+                <Link to="/pending" style={{ color: "white" }}>
+                  Pending Approvals
+                </Link>
+
+                <Link to="/Audit" style={{ color: "white" }}>
+                  
+                </Link>
+              </>
+            )}
+
+            {/* Normal User ke liye */}
+            {user?.role !== "admin" && (
+              <Link
+                to={`/user/${user?.id}`}
+                style={{ color: "white" }}
+              >
+                My Profile
+              </Link>
+            )}
 
             <button
               onClick={logoutUser}
               style={{
-                cursor: "pointer",
                 marginLeft: "auto",
-                padding: "8px 16px",
-                backgroundColor: "#dc3545",
+                background: "#dc3545",
                 color: "white",
                 border: "none",
-                borderRadius: "4px",
-                fontWeight: "600"
+                padding: "8px 16px",
+                cursor: "pointer",
               }}
             >
               Logout
@@ -72,21 +104,128 @@ export default function App() {
         )}
       </nav>
 
-      {/* ROUTES */}
+      {/* Routes */}
+
       <Routes>
-        {/* Register & Login: login hone ke baad user yahan nahi aa sakta */}
-        <Route path="/" element={token ? <Navigate to="/users" /> : <Register />} />
-        
-        {/* SAHI TARIKA: Login component ko setToken prop pass kiya */}
-        <Route path="/login" element={token ? <Navigate to="/users" /> : <Login setToken={setToken} />} />
+        {/* Public */}
 
-        {/* Protected Routes: Bina token ke access nahi ho sakte */}
-        <Route path="/users" element={token ? <Users /> : <Navigate to="/login" />} />
-        <Route path="/user/:id" element={token ? <UserDetails /> : <Navigate to="/login" />} />
-        <Route path="/user/:id/edit" element={token ? <EditUser /> : <Navigate to="/login" />} />
+        <Route
+          path="/"
+          element={
+            token ? (
+              user?.role === "admin" ? (
+                <Navigate to="/users" />
+              ) : (
+                <Navigate to={`/user/${user?.id}`} />
+              )
+            ) : (
+              <Register />
+            )
+          }
+        />
 
-        {/* Default / Fallback Route */}
-        <Route path="*" element={<Navigate to={token ? "/users" : "/login"} />} />
+        <Route
+          path="/login"
+          element={
+            token ? (
+              user?.role === "admin" ? (
+                <Navigate to="/users" />
+              ) : (
+                <Navigate to={`/user/${user?.id}`} />
+              )
+            ) : (
+              <Login setToken={setToken} />
+            )
+          }
+        />
+
+        {/* Admin */}
+
+        <Route
+          path="/users"
+          element={
+            token ? (
+              user?.role === "admin" ? (
+                <Users logoutUser={logoutUser} />
+              ) : (
+                <Navigate to={`/user/${user?.id}`} />
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        <Route
+          path="/pending"
+          element={
+            token ? (
+              user?.role === "admin" ? (
+                <PendingApprovals />
+              ) : (
+                <Navigate to={`/user/${user?.id}`} />
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        <Route
+          path="/Audit"
+          element={
+            token ? (
+              user?.role === "admin" ? (
+                <Audit logoutUser={logoutUser} />
+              ) : (
+                <Navigate to={`/user/${user?.id}`} />
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        {/* User Details */}
+
+        <Route
+          path="/user/:id"
+          element={
+            token ? (
+              <UserDetails />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        <Route
+          path="/user/:id/edit"
+          element={
+            token ? (
+              <EditUser />
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+
+        {/* Default */}
+
+        <Route
+          path="*"
+          element={
+            token ? (
+              user?.role === "admin" ? (
+                <Navigate to="/users" />
+              ) : (
+                <Navigate to={`/user/${user?.id}`} />
+              )
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
       </Routes>
     </div>
   );

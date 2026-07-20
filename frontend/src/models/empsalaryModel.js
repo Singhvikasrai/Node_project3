@@ -7,7 +7,7 @@ export const emsalary = async (data) => {
         empl_id,
         salary,
         start_date,
-        end_date
+        end_date,
     } = data;
 
     const [result] = await db.execute(

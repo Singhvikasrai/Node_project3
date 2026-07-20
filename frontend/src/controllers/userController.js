@@ -9,6 +9,9 @@ import jwt from "jsonwebtoken";
 export const registerUserController = async (req, res) => {
     try {
         console.log("REQUEST BODY:", req.body);
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.status(400).json({ message: "Request body is required" });
+        }
 
         const result = await registerUserService(req.body);
 

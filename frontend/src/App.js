@@ -1,108 +1,26 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Routes,
   Route,
-  Link,
   Navigate,
-  useNavigate,
 } from "react-router-dom";
 
-import Register from "./Register";
-import Login from "./Login";
-import Users from "./Users";
-import UserDetails from "./UserDetails";
-import EditUser from "./EditUser";
-import Audit from "./Audit";
-import PendingApprovals from "./PendingApprovals";
+import Register from "./pages/Register";
+import Login from "./pages/Login/Login.jsx";
+import Users from "./pages/Users";
+import UserDetails from "./pages/UserDetails";
+import EditUser from "./pages/EditUser";
+import Audit from "./pages/Audit/Audit.jsx";
+import PendingApprovals from "./pages/PendingApprovals";
+import AppNavigation from "./components/AppNavigation/AppNavigation.js";
+import useAuth from "./hooks/useAuth";
 
 export default function App() {
-  const navigate = useNavigate();
-
-  const [token, setToken] = useState(localStorage.getItem("token"));
-
-  // Logged in user
-  const user = JSON.parse(localStorage.getItem("user"));
-
-  const logoutUser = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("isLogin");
-
-    setToken(null);
-
-    navigate("/login");
-  };
+  const { token, setToken, user, logoutUser } = useAuth();
 
   return (
     <div>
-      {/* Navbar */}
-
-      <nav
-        style={{
-          display: "flex",
-          gap: "20px",
-          padding: "15px",
-          background: "#007bff",
-          alignItems: "center",
-        }}
-      >
-        {!token && (
-          <>
-            <Link to="/" style={{ color: "white" }}>
-              Register
-            </Link>
-
-            <Link to="/login" style={{ color: "white" }}>
-              Login
-            </Link>
-          </>
-        )}
-
-        {token && (
-          <>
-            {/* Sirf Admin ke liye */}
-            {user?.role === "admin" && (
-              <>
-                <Link to="/users" style={{ color: "white" }}>
-                  Users
-                </Link>
-
-                <Link to="/pending" style={{ color: "white" }}>
-                  Pending Approvals
-                </Link>
-
-                <Link to="/Audit" style={{ color: "white" }}>
-                  
-                </Link>
-              </>
-            )}
-
-            {/* Normal User ke liye */}
-            {user?.role !== "admin" && (
-              <Link
-                to={`/user/${user?.id}`}
-                style={{ color: "white" }}
-              >
-                My Profile
-              </Link>
-            )}
-
-            <button
-              onClick={logoutUser}
-              style={{
-                marginLeft: "auto",
-                background: "#dc3545",
-                color: "white",
-                border: "none",
-                padding: "8px 16px",
-                cursor: "pointer",
-              }}
-            >
-              Logout
-            </button>
-          </>
-        )}
-      </nav>
+      <AppNavigation token={token} user={user} onLogout={logoutUser} />
 
       {/* Routes */}
 
